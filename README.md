@@ -9,6 +9,7 @@ For technical detail, please check the [website](http://www.kki.yamanashi.ac.jp/
 **********************
 Updated by @wazenmai.
 You can now use Python_WORLD to change your speech to singing!
+
 **Usage**
 ```
 pip3 install -r requirements.txt
@@ -24,9 +25,14 @@ D4 E4 F4 F4 F4 F4 G4 A4 E4 F4
 ```
 and run
 ```
-python3 prosody.py -i="./test/test-owl-girl" -o="_m.wav"  -c="file" -f="input.txt" |& tee log
+python3 prosody.py -i="./test/test-owl-girl" \
+                   -o="_m.wav" \
+                   -c="file" \
+                   -f="input.txt"
 ```
+
 **Change method**
+
 Ther are 2 methods for you to adjust your f0, one is avrage f0 `avg` , one is mode f0 `mode`. You can choose your method from `prosody.py`, line 346
 ```
 dat['f0'] = calculate_f0(dat['f0'], note_list[note], method='mode')
