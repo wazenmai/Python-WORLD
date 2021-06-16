@@ -5,6 +5,33 @@ This is a line-by-line implementation of WORLD vocoder (Matlab, C++) in python. 
 
 For technical detail, please check the [website](http://www.kki.yamanashi.ac.jp/~mmorise/world/english/).
 
+# Update at 2021/6/17
+**********************
+Updated by @wazenmai.
+You can now use Python_WORLD to change your speech to singing!
+**Usage**
+```
+pip3 install -r requirements.txt
+python3 prosody.py -i="(your input speech file path)" -o="(output_end_name).wav" -c="(your choose for the instruction) -f="(file name if you choose file)
+```
+If you want to use "file" option, you can input your note numbers and durations by the file. First line means how many words in your speech. Second line means how many notes you're going to sing. Thrid line is for the note names. Fourth line is for the duration, number greater than 1 for slow down, number smaller than 1 for speed up.
+`input.txt` example: 
+```
+10
+10
+D4 E4 F4 F4 F4 F4 G4 A4 E4 F4
+1.5 1.5 2 1.5 2 1 1.5 1.5 1.5 1.5
+```
+and run
+```
+python3 prosody.py -i="./test/test-owl-girl" -o="_m.wav"  -c="file" -f="input.txt" |& tee log
+```
+**Change method**
+Ther are 2 methods for you to adjust your f0, one is avrage f0 `avg` , one is mode f0 `mode`. You can choose your method from `prosody.py`, line 346
+```
+dat['f0'] = calculate_f0(dat['f0'], note_list[note], method='mode')
+```
+
 # INSTALATION
 *********************
 
