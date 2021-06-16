@@ -1,6 +1,8 @@
-from pathlib import Path
-
 import numpy as np
+import operator
+import argparse
+
+from pathlib import Path
 from scipy.io.wavfile import read as wavread
 from scipy.io.wavfile import write as wavwrite
 from scipy import signal
@@ -146,17 +148,53 @@ def pitch2freq(pitch):
         return ACC_DICT[pitch]
     return NOTE_DICT[pitch]
 
-def calculate_f0(f0_o, note):
+def pitch2freq_list(pitch_list):
+    freq_list = []
+    for pitch in pitch_list:
+        freq_list.append(pitch2freq(pitch))
+    return freq_list
+
+def calculate_f0(f0_o, note, method='avg'):
     std = np.zeros(f0_o.shape)
+    # print(f0_o)
+    # print(f0_o.shape)
     sum_f0 = 0
     num_f0 = 0
+
+
     # calculate average f0
-    for f in f0_o:
-        if f != 0:
-            num_f0 += 1
-            sum_f0 += f
-    avg_f0 = sum_f0 / num_f0
-    print("Average f0:", avg_f0)
+    if method == 'avg':
+        for f in f0_o:
+            if f != 0:
+                num_f0 += 1
+                sum_f0 += f
+        if num_f0 == 0:
+            print("    All Zero!!")
+            return std
+        avg_f0 = sum_f0 / num_f0
+        print("    Average f0:", avg_f0)
+
+    elif method == 'mode':
+        max_number = 0
+        min_number = 1000
+        number_dict = {}
+        for f in f0_o:
+            if f != 0:
+                max_number = max(max_number, f)
+                min_number = min(min_number, f)
+                number = int(f)
+                if number in number_dict:
+                    number_dict[number] += 1
+                else:
+                    number_dict[number] = 1
+        
+                
+        if not number_dict:
+            print("    All Zero!!")
+            return std
+        avg_f0 = max(number_dict, key=number_dict.get)
+        print(f"    Max occurance number: {avg_f0}, {number_dict[avg_f0]}")
+        print(f"    The Difference of upper and lower limit: {max_number - min_number}, ({max_number}, {min_number})")
 
     # calcualte the difference
     for idx, f in enumerate(f0_o):
@@ -166,13 +204,26 @@ def calculate_f0(f0_o, note):
             std[idx] = f - avg_f0
     
     pitch = pitch2freq(note)
+    print("    Goal f0: ", pitch)
     new_f0 = np.zeros(f0_o.shape)
+
+    # give it new frequency also slightly degraded...
     for idx, s in enumerate(std):
         if s == 0:
-            new_f0[idx] = 0
+            if idx != 0 and new_f0[idx - 1] != 0:
+                new_f0[idx] = new_f0[idx - 1] / 2 
+        elif abs(s) > 50:
+            if s > 0:
+                new_f0[idx] = avg_f0 - 25
+            else:
+                new_f0[idx] = avg_f0 + 25
         else:
             new_f0[idx] = pitch + s
-
+            if idx != 0 and new_f0[idx - 1] == 0:
+                new_f0[idx] /= 2
+    if new_f0[-1] != 0:
+        new_f0[-1] = new_f0[-1] / 2
+    print(new_f0)
     return new_f0
 
 def manipulate_f0(dat, note_list):
@@ -227,42 +278,84 @@ def make_song_dict(path):
             f_name = f.split('.')[0]
             song_dict[f_name] = root + f
 
+def get_args():
+    parser = argparse.ArgumentParser(description='Argument Parser for speech to singing synthesis')
+    parser.add_argument('-c', '--choose', choices=['cmd', 'file'], required=True)
+    parser.add_argument('-i', '--input', type=str, default="./test/test-123", required=False)
+    parser.add_argument('-o', '--output', type=str, default="_0.wav", required=False)
+    parser.add_argument('-f', '--file', type=str, default="input.txt", required=False)
+    args = parser.parse_args()
+    return args
+
 def main():
-
+    args = get_args()
     # wav_path = Path('./test/test-walk.wav')
-    wav_path = './test/test-star'
-    wav_sections, fs = cut_speech(wav_path + '.wav')
 
-    # input the note requirement
-    notes_number = int(input("How many note are you going to compose?"))
-    note_list = list(str(num) for num in input("Enter the note items separated by space: ").strip().split())[:notes_number]
-    note_len = len(note_list)
-    print(f"note_list: {note_list} {note_len}")
-    print()
+    if args.choose == 'cmd':
+        # input the note requirement
+        notes_number = int(input("How many note are you going to compose? "))
+        note_list = list(str(num) for num in input("Enter the note items separated by space: ").strip().split())[:notes_number]
+        note_len = len(note_list)
+        print(f"note_list: {note_list} {note_len}")
+        print()
 
-    # TODO: input the duration requirement
-    duration_list = list(float(num) for num in input("Enter the duration ratio separated by space: ").strip().split())[:notes_number]
-    duration_len = len(duration_list)
-    print(f"duration list: {duration_list} {duration_len}")
+        # input the duration requirement
+        duration_list = list(float(num) for num in input("Enter the duration ratio separated by space: ").strip().split())[:notes_number]
+        duration_len = len(duration_list)
+        number_of_words = 0
+        print(f"duration list: {duration_list} {duration_len}")
+    elif args.choose == 'file':
+        file_name = args.file
+        with open(file_name, "r") as f:
+            lines = f.read().splitlines()
+        
+        for idx, line in enumerate(lines):
+            l = line.split()
+            if idx == 0:
+                number_of_words = int(l[0])
+            elif idx == 1:
+                notes_number = int(l[0])
+                print("number_of_notes: ", notes_number)
+            elif idx == 2:
+                note_list = []
+                for n in l:
+                    note_list.append(str(n))
+                print("note_list: ", note_list)
+                print("frequency_list: ", pitch2freq_list(note_list))
+            elif idx == 3:
+                duration_list = []
+                for n in l:
+                    duration_list.append(float(n))
+                print("duration_list: ", duration_list)
+        print()
+
+    # split the speech
+    wav_path = args.input
+    wav_sections, fs = cut_speech(wav_path + '.wav', number_of_words)
 
     # initialize the world vocoder
     vocoder = world_main.World()
+    
+    note = 0
+    while note < notes_number:
+        for wav_num, wav_section in enumerate(wav_sections):
+            x = wav_section / (2 ** 15 - 1)
+            # analysis
+            dat = vocoder.encode(fs, x, f0_method='harvest', is_requiem=True) # use requiem analysis and synthesis
+            print(f"section {note + 1} processing...")
+            dat['f0'] = calculate_f0(dat['f0'], note_list[note], method='mode')
+            if duration_list[note] != 1:
+                dat = vocoder.scale_duration(dat, duration_list[note])
+            dat = vocoder.decode(dat)
+            if note == 0:
+                final_data = dat['out']
+            else:
+                final_data = np.concatenate((final_data, dat['out']))
+            note += 1
+            if note == notes_number:
+                break
 
-    for wav_num, wav_section in enumerate(wav_sections):
-        x = wav_section / (2 ** 15 - 1)
-        # analysis
-        dat = vocoder.encode(fs, x, f0_method='harvest', is_requiem=True) # use requiem analysis and synthesis
-        print(f"section {wav_num + 1} processing...")
-        dat['f0'] = calculate_f0(dat['f0'], note_list[wav_num])
-        if duration_list[wav_num] != 1:
-            dat = vocoder.scale_duration(dat, duration_list[wav_num])
-        dat = vocoder.decode(dat)
-        if wav_num == 0:
-            final_data = dat['out']
-        else:
-            final_data = np.concatenate((final_data, dat['out']))
-
-    wavwrite(wav_path + '-resynth_1.wav', fs, (final_data * 2 ** 15).astype(np.int16))
+    wavwrite(wav_path + '-resynth' + args.output, fs, (final_data * 2 ** 15).astype(np.int16))
 
     # for k in song_dict:
 

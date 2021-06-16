@@ -181,7 +181,7 @@ def main():
         j = j + 1
         i = i + 2  
 
-def cut_speech(path):
+def cut_speech(path, num_words=0):
     """
     Parameters: 
         path: original speech path
@@ -192,7 +192,9 @@ def cut_speech(path):
     filename = path
     result = "./test/cut_speech/"
 
-    num_words = 8
+    # num_words = 8
+    if num_words == 0:
+        num_words = int(input("How words do you have in the speech? "))
     #---------------------------------------------------------------------------------------------------
     data, fs = sf.read(filename)
     data = data.astype(np.float)
